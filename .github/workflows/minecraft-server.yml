@@ -166,6 +166,17 @@ jobs:
              rm -f world/session.lock
              
              # 2. التأكد من صلاحيات ملف التشغيل وتصحيح الرامات
+             # البحث عن بدائل لـ run.sh (لأن المودباكات بتسميه start.sh ساعات)
+             if [ ! -f "run.sh" ]; then
+                for script in start.sh ServerStart.sh LaunchServer.sh run-server.sh; do
+                    if [ -f "$script" ]; then
+                        echo "⚠️ تم العثور على $script - جاري إعادة تسميته لـ run.sh"
+                        mv "$script" run.sh
+                        break
+                    fi
+                done
+             fi
+
              if [ -f "run.sh" ]; then
                 chmod +x run.sh
                 # إصلاح الرامات لو الملف جاي من Mega بإعدادات قديمة
