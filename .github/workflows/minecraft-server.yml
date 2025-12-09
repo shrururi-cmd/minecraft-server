@@ -97,6 +97,32 @@ jobs:
             echo "📝 سيتم إنشاء سيرفر جديد"
           fi
       
+      - name: ⚙️ Parse Configuration (Magic Names)
+        id: parse_config
+        run: |
+          # 1. Default Defaults
+          TUNNEL="playit"
+          INTERVAL=900
+          
+          echo "🔍 تحليل اسم السيرفر: $SERVER_NAME"
+          
+          # 2. Check for ngrok (_ng)
+          if [[ "$SERVER_NAME" == *"_ng"* ]]; then
+            echo "🚀 تم اكتشاف طلب ngrok"
+            TUNNEL="ngrok"
+          fi
+          
+          # 3. Check for Custom Interval (_mXX)
+          if [[ "$SERVER_NAME" =~ _m([0-9]+) ]]; then
+            MINS="${BASH_REMATCH[1]}"
+            INTERVAL=$((MINS * 60))
+            echo "⏱️ تم تغيير وقت النسخ الاحتياطي إلى: $MINS دقيقة ($INTERVAL ثانية)"
+          fi
+          
+          # Export to Env
+          echo "TUNNEL_TYPE=$TUNNEL" >> $GITHUB_ENV
+          echo "SYNC_INTERVAL=$INTERVAL" >> $GITHUB_ENV
+
       - name: Setup Server (if needed)
         run: |
           cd server
@@ -211,7 +237,8 @@ jobs:
           # تأكيد قبول EULA
           echo "eula=true" > eula.txt
       
-      - name: Setup playit.gg
+      - name: 🌐 Setup playit.gg (Default)
+        if: env.TUNNEL_TYPE == 'playit'
         run: |
           echo "🌐 إعداد playit.gg..."
           curl -SsL https://playit-cloud.github.io/ppa/key.gpg | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/playit.gpg >/dev/null
@@ -219,6 +246,33 @@ jobs:
           sudo apt update
           sudo apt install playit -y
           echo "✅ تم تثبيت playit.gg"
+          
+          # Start in background
+          cd server
+          nohup playit > playit.log 2>&1 &
+          echo "✅ جاري تشغيل playit في الخلفية"
+
+      - name: 🚀 Setup ngrok (Optional)
+        if: env.TUNNEL_TYPE == 'ngrok'
+        run: |
+          cd server
+          echo "📥 تنزيل ngrok..."
+          wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
+          tar -xzf ngrok-v3-stable-linux-amd64.tgz
+          chmod +x ngrok
+          
+          echo "🔑 تفعيل التوكن..."
+          # Hardcoded Token as requested
+          ./ngrok config add-authtoken 35AOdKAlenxQzvzq8HLpuExYQBL_2wxtVfzEK9r4vcBBUwkTj
+          
+          echo "🌐 تشغيل التانل..."
+          nohup ./ngrok tcp 25565 --log=stdout > ngrok.log 2>&1 &
+          
+          sleep 5
+          echo "========================================="
+          echo "🔗 رابط السيرفر (ngrok):"
+          curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url' || echo "Error getting url"
+          echo "========================================="
       
       - name: Run Server with Auto-Sync
         run: |
@@ -231,10 +285,8 @@ jobs:
           echo "🔄 Sync كل 15 دقيقة"
           echo "======================================"
           
-          # تشغيل playit.gg
-          playit &
-          PLAYIT_PID=$!
-          sleep 10
+          # التانل يعمل في الخلفية بالفعل (من الخطوة السابقة)
+          echo "✅ التأكد من عمل التانل..."
           
           echo ""
           echo "🌍 للحصول على IP:"
@@ -274,14 +326,15 @@ jobs:
           # أول sync
           sync_to_mega
           
-          # Sync كل 15 دقيقة
-          SYNC_INTERVAL=900
+          # Sync Interval comes from ENV now
+          echo "🔄 نظام النسخ الاحتياطي يعمل كل $SYNC_INTERVAL ثانية"
           ELAPSED=0
           
           while kill -0 $SERVER_PID 2>/dev/null; do
             sleep 60
             ELAPSED=$((ELAPSED + 60))
             
+            # استخدام Modulo للوقت
             if [ $((ELAPSED % SYNC_INTERVAL)) -eq 0 ]; then
                 sync_to_mega
               fi
