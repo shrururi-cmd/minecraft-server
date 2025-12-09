@@ -1,0 +1,39 @@
+# Minecraft Server Files
+*.jar
+libraries/
+versions/
+forge-installer.jar*
+run.bat
+run.sh
+user_jvm_args.txt
+
+# Logs
+logs/
+crash-reports/
+*.log
+
+# World backups (uncomment if you want to save worlds)
+# world/
+world_nether/
+world_the_end/
+
+# Cache and temp files
+cache/
+.cache/
+*.tmp
+*.temp
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE Files
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+
+# Node modules (if using any tools)
+node_modules/

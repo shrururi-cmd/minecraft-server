@@ -1,0 +1,294 @@
+name: Minecraft Server Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      server_name:
+        description: 'اسم السيرفر على Mega'
+        required: true
+        default: 'forge-1.20.1'
+        type: choice
+        options:
+          - forge-1.20.1
+          - fabric-1.16.5
+          - vanilla-1.19.4
+          - Custom (Type Below)
+      
+      custom_server_name:
+        description: 'اسم السيرفر المخصص (لو اخترت Custom)'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  run-minecraft-server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 ساعات
+    
+    steps:
+      - name: Set up Java 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      
+      - name: Install Dependencies
+        run: |
+          echo "📦 تثبيت الأدوات..."
+          sudo apt-get update
+          sudo apt-get install -y wget curl screen
+          echo "✅ تم تثبيت الأدوات"
+      
+      - name: Install rclone
+        run: |
+          echo "📦 تثبيت rclone..."
+          curl https://rclone.org/install.sh | sudo bash
+          echo "✅ تم تثبيت rclone"
+      
+      - name: Configure rclone for Mega
+        env:
+          MEGA_EMAIL: ${{ secrets.MEGA_EMAIL }}
+          MEGA_PASSWORD: ${{ secrets.MEGA_PASSWORD }}
+        run: |
+          echo "🔐 إعداد rclone لـ Mega..."
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf << EOF
+          [mega]
+          type = mega
+          user = $MEGA_EMAIL
+          pass = $(rclone obscure "$MEGA_PASSWORD")
+          EOF
+          echo "✅ تم إعداد rclone"
+      
+      - name: Download Server from Mega
+        continue-on-error: true
+        env:
+          INPUT_SERVER_NAME: ${{ github.event.inputs.server_name }}
+          INPUT_CUSTOM_NAME: ${{ github.event.inputs.custom_server_name }}
+        run: |
+          # تحديد اسم السيرفر
+          if [ "$INPUT_SERVER_NAME" == "Custom (Type Below)" ]; then
+            SERVER_NAME="$INPUT_CUSTOM_NAME"
+          else
+            SERVER_NAME="$INPUT_SERVER_NAME"
+          fi
+          
+          # التأكد من عدم فراغ الاسم
+          if [ -z "$SERVER_NAME" ]; then
+            echo "❌ خطأ: لم يتم تحديد اسم السيرفر!"
+            exit 1
+          fi
+          
+          # حفظ الاسم في ENV للخطوات القادمة
+          echo "SERVER_NAME=$SERVER_NAME" >> $GITHUB_ENV
+          
+          echo "☁️ تحميل السيرفر من Mega..."
+          echo "📂 السيرفر: $SERVER_NAME"
+          
+          mkdir -p server
+          
+          # تحميل المجلد من Mega
+          if rclone lsd "mega:minecraft-servers/$SERVER_NAME" 2>/dev/null; then
+            echo "✅ تم العثور على السيرفر، جاري التحميل..."
+            rclone sync "mega:minecraft-servers/$SERVER_NAME" ./server --progress
+            echo "✅ تم تحميل السيرفر بنجاح"
+          else
+            echo "ℹ️ السيرفر غير موجود على Mega"
+            echo "📝 سيتم إنشاء سيرفر جديد"
+          fi
+      
+      - name: Setup Server (if needed)
+        run: |
+          cd server
+          
+          echo "🔍 التحقق من حالة السيرفر..."
+          
+          # إذا لم يكن هناك run.sh، يعني السيرفر جديد
+          if [ ! -f "run.sh" ]; then
+            echo "📦 سيرفر جديد - جاري التثبيت..."
+            
+            # قبول EULA
+            echo "eula=true" > eula.txt
+            
+            # إنشاء مجلد mods
+            mkdir -p mods
+            
+            # إنشاء server.properties
+            cat > server.properties << 'PROPS'
+          #Minecraft server properties
+          spawn-protection=0
+          max-tick-time=60000
+          query.port=25565
+          generator-settings={}
+          sync-chunk-writes=true
+          force-gamemode=false
+          allow-nether=true
+          enforce-whitelist=false
+          gamemode=survival
+          broadcast-console-to-ops=true
+          enable-query=false
+          player-idle-timeout=0
+          difficulty=easy
+          spawn-monsters=true
+          broadcast-rcon-to-ops=true
+          op-permission-level=4
+          pvp=true
+          entity-broadcast-range-percentage=100
+          level-type=default
+          hardcore=false
+          enable-status=true
+          enable-command-block=false
+          max-players=20
+          network-compression-threshold=256
+          max-world-size=29999984
+          server-port=25565
+          server-ip=
+          spawn-npcs=true
+          allow-flight=false
+          level-name=world
+          view-distance=10
+          spawn-animals=true
+          white-list=false
+          generate-structures=true
+          online-mode=false
+          max-build-height=256
+          motd=Minecraft Server on GitHub Actions
+          enable-rcon=false
+          PROPS
+            
+          else
+             echo "✅ تم تحميل السيرفر من Mega!"
+             
+             # 🛠️ إصلاح المشاكل الشائعة عند الاستئناف
+             echo "🔧 فحص الملفات..."
+             
+             # 1. حذف ملف القفل
+             rm -f world/session.lock
+             
+             # 2. التأكد من صلاحيات ملف التشغيل وتصحيح الرامات
+             if [ -f "run.sh" ]; then
+                chmod +x run.sh
+                # إصلاح الرامات لو الملف جاي من Mega بإعدادات قديمة
+                sed -i 's/-Xmx[0-9]*G/-Xmx12G/g' run.sh
+                sed -i 's/-Xms[0-9]*G/-Xms12G/g' run.sh
+             fi
+             
+             # 3. التأكد من ملف الرامات
+             echo "-Xmx12G" > user_jvm_args.txt
+             echo "-Xms12G" >> user_jvm_args.txt
+          fi
+          
+          # 🔄 تثبيت Forge + إصلاح Libraries (يعمل دائماً)
+          if [[ "$SERVER_NAME" == forge-* ]]; then
+              echo "🔧 التحقق من Forge والمكتبات..."
+              wget -q https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.3.0/forge-1.20.1-47.3.0-installer.jar -O forge-installer.jar
+              java -jar forge-installer.jar --installServer
+              
+              # تصحيح ملف التشغيل (لأن التثبيت ممكن يغيره)
+              if [ -f "run.sh" ]; then
+                chmod +x run.sh
+                sed -i 's/-Xmx[0-9]*G/-Xmx12G/g' run.sh
+                sed -i 's/-Xms[0-9]*G/-Xms12G/g' run.sh
+              fi
+          fi
+          
+          # تأكيد إعدادات الرامات (12GB - Public Runner)
+          echo "🔧 تحديث إعدادات الرامات..."
+          echo "-Xmx12G" > user_jvm_args.txt
+          echo "-Xms12G" >> user_jvm_args.txt
+          
+          # تأكيد قبول EULA
+          echo "eula=true" > eula.txt
+      
+      - name: Setup playit.gg
+        run: |
+          echo "🌐 إعداد playit.gg..."
+          curl -SsL https://playit-cloud.github.io/ppa/key.gpg | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/playit.gpg >/dev/null
+          echo "deb [signed-by=/etc/apt/trusted.gpg.d/playit.gpg] https://playit-cloud.github.io/ppa/data ./" | sudo tee /etc/apt/sources.list.d/playit-cloud.list
+          sudo apt update
+          sudo apt install playit -y
+          echo "✅ تم تثبيت playit.gg"
+      
+      - name: Run Server with Auto-Sync
+        run: |
+          cd server
+          
+          echo "🚀 بدء السيرفر..."
+          echo "======================================"
+          echo "📝 السيرفر: $SERVER_NAME"
+          echo "⏰ وقت البدء: $(date)"
+          echo "🔄 Sync كل 15 دقيقة"
+          echo "======================================"
+          
+          # تشغيل playit.gg
+          playit &
+          PLAYIT_PID=$!
+          sleep 10
+          
+          echo ""
+          echo "🌍 للحصول على IP:"
+          echo "https://playit.gg/account/agents"
+          echo "======================================"
+          
+          # دالة Sync مع Mega
+          sync_to_mega() {
+            echo "💾 مزامنة مع Mega... $(date)"
+            
+            # إنشاء مجلد mods لو مش موجود
+            mkdir -p mods
+            touch mods/.gitkeep
+            
+            rclone sync . "mega:minecraft-servers/$SERVER_NAME" \
+              --exclude="libraries/**" \
+              --exclude="logs/**" \
+              --exclude="crash-reports/**" \
+              --exclude="*.jar.cache" \
+              --exclude="forge-installer.jar" \
+              --progress
+            echo "✅ تم الحفظ"
+          }
+          
+          # تشغيل السيرفر
+          if [ -f "run.sh" ]; then
+            bash run.sh --nogui &
+            SERVER_PID=$!
+          else
+            echo "❌ لم يتم العثور على run.sh"
+            exit 1
+          fi
+          
+          echo "⏳ انتظار بدء السيرفر..."
+          sleep 120
+          
+          # أول sync
+          sync_to_mega
+          
+          # Sync كل 15 دقيقة
+          SYNC_INTERVAL=900
+          ELAPSED=0
+          
+          while kill -0 $SERVER_PID 2>/dev/null; do
+            sleep 60
+            ELAPSED=$((ELAPSED + 60))
+            
+            if [ $((ELAPSED % SYNC_INTERVAL)) -eq 0 ]; then
+                sync_to_mega
+              fi
+            done
+            
+            # لو اللوب خلص، يبقى السيرفر قفل
+            echo "❌ السيرفر توقف عن العمل!"
+            if [ -f "logs/latest.log" ]; then
+              echo "📝 عرض آخر Log:"
+              echo "==================================================="
+              tail -n 100 logs/latest.log
+              echo "==================================================="
+            fi
+            
+            # حفظ أخير
+            sync_to_mega
+          
+          echo "======================================"
+          echo "⏰ وقت الإيقاف: $(date)"
+          echo "✅ تم حفظ كل شيء"
+          echo "======================================"
