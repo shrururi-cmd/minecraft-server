@@ -260,6 +260,14 @@ jobs:
           cd server
           nohup playit > playit.log 2>&1 &
           echo "✅ جاري تشغيل playit في الخلفية"
+          
+          echo "⏳ انتظار رابط التفعيل (10 ثواني)..."
+          sleep 10
+          
+          echo "========================================="
+          echo "🔗 رابط تفعيل playit.gg:"
+          grep -o 'https://playit.gg/claim/.*' playit.log || cat playit.log
+          echo "========================================="
 
       - name: 🚀 Setup ngrok (Optional)
         if: env.TUNNEL_TYPE == 'ngrok'
@@ -301,8 +309,13 @@ jobs:
           echo "========================================="
           echo "🔗 رابط السيرفر (Cloudflare):"
           
-          # محاولة استخراج الرابط
-          URL=$(grep -o 'tcp://.*\.trycloudflare\.com' cloudflare.log | head -n 1)
+          # محاولة استخراج الرابط (يدعم https أو tcp)
+          URL=$(grep -o 'https://.*\.trycloudflare\.com' cloudflare.log | head -n 1)
+          
+          if [ -z "$URL" ]; then
+             # محاولة بحث أوسع
+             URL=$(grep -o '.*\.trycloudflare\.com' cloudflare.log | head -n 1)
+          fi
           
           if [ -z "$URL" ]; then
              echo "⚠️ لم يتم العثور على الرابط تلقائياً. عرض السجل كامل:"
