@@ -221,24 +221,33 @@ jobs:
              echo "-Xms12G" >> user_jvm_args.txt
           fi
           
-          # 🔄 تثبيت Forge + إصلاح Libraries (ذكي)
-          # البحث عن أي نسخة Forge مثبتة مسبقاً بدلاً من البحث عن نسخة محددة
-          EXISTING_ARGS=$(find libraries/net/minecraftforge/forge -name "unix_args.txt" 2>/dev/null | head -n 1)
+          # 🔄 الإصلاح الديناميكي الذكي (Dynamic Library Repair)
+          # الهدف: معرفة إصدار Forge بتاع المودباك وتثبيته هو هو بالظبط عشان نصلح الملفات الناقصة
           
-          if [ -n "$EXISTING_ARGS" ]; then
-              echo "✅ تم العثور على ملفات Forge جاهزة من المودباك: $EXISTING_ARGS"
-              echo "لن يتم إجراء أي تغييرات لتجنب المشاكل."
+          # 1. البحث عن فولدر Forge المتثبت
+          FORGE_DIR=$(find libraries/net/minecraftforge/forge -maxdepth 1 -type d -name "1.20.1-*" | head -n 1)
+          
+          if [ -z "$FORGE_DIR" ]; then
+             echo "⚠️ لم يتم العثور على أي ملفات Forge. جاري تثبيت الإصدار الافتراضي (47.3.0)..."
+             FORGE_VERSION="1.20.1-47.3.0"
           else
-              echo "🔧 لم يتم العثور على Forge. جاري تثبيت إصدار 47.3.20..."
-              wget -q https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.3.20/forge-1.20.1-47.3.20-installer.jar -O forge-installer.jar
-              java -jar forge-installer.jar --installServer
-              
-              # تصحيح ملف التشغيل (لأن التثبيت ممكن يغيره)
-              if [ -f "run.sh" ]; then
-                chmod +x run.sh
-                sed -i 's/-Xmx[0-9]*G/-Xmx12G/g' run.sh
-                sed -i 's/-Xms[0-9]*G/-Xms12G/g' run.sh
-              fi
+             # 2. استخراج رقم الإصدار من اسم الفولدر
+             FORGE_VERSION=$(basename "$FORGE_DIR")
+             echo "✅ تم اكتشاف إصدار Forge المطلوب: $FORGE_VERSION"
+          fi
+          
+          # 3. تحميل وتثبيت النسخة المتطابقة تماماً لإصلاح الـ Libraries
+          echo "🔧 جاري تحميل وتثبيت Installer لنسخة: $FORGE_VERSION ..."
+          wget -q "https://maven.minecraftforge.net/net/minecraftforge/forge/${FORGE_VERSION}/forge-${FORGE_VERSION}-installer.jar" -O forge-installer.jar
+          
+          # التثبيت
+          java -jar forge-installer.jar --installServer
+          
+          # 4. إصلاحات ما بعد التثبيت
+          if [ -f "run.sh" ]; then
+             chmod +x run.sh
+             sed -i 's/-Xmx[0-9]*G/-Xmx12G/g' run.sh
+             sed -i 's/-Xms[0-9]*G/-Xms12G/g' run.sh
           fi
           
           # تأكيد إعدادات الرامات (12GB - Public Runner)
