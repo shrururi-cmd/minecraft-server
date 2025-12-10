@@ -300,6 +300,9 @@ jobs:
           chmod +x cloudflared
           
           echo "🌐 تشغيل التانل..."
+          # حذف السجل القديم لتجنب التداخل
+          rm -f cloudflare.log
+          
           # Start Quick Tunnel
           nohup ./cloudflared tunnel --url tcp://localhost:25565 --logfile cloudflare.log > /dev/null 2>&1 &
           
@@ -309,13 +312,8 @@ jobs:
           echo "========================================="
           echo "🔗 رابط السيرفر (Cloudflare):"
           
-          # محاولة استخراج الرابط (يدعم https أو tcp)
-          URL=$(grep -o 'https://.*\.trycloudflare\.com' cloudflare.log | head -n 1)
-          
-          if [ -z "$URL" ]; then
-             # محاولة بحث أوسع
-             URL=$(grep -o '.*\.trycloudflare\.com' cloudflare.log | head -n 1)
-          fi
+          # استخراج الرابط بشكل دقيق (تجاهل الرموز الغريبة)
+          URL=$(grep -o 'https://[-a-zA-Z0-9]*\.trycloudflare\.com' cloudflare.log | head -n 1)
           
           if [ -z "$URL" ]; then
              echo "⚠️ لم يتم العثور على الرابط تلقائياً. عرض السجل كامل:"
