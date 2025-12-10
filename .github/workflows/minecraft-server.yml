@@ -118,7 +118,13 @@ jobs:
             TUNNEL="cloudflare"
           fi
           
-          # 4. Check for Custom Interval (_mXX)
+          # 4. Check for Tailscale (_ts)
+          if [[ "$SERVER_NAME" == *"_ts"* ]]; then
+            echo "🦎 تم اكتشاف طلب Tailscale"
+            TUNNEL="tailscale"
+          fi
+          
+          # 5. Check for Custom Interval (_mXX)
           if [[ "$SERVER_NAME" =~ _m([0-9]+) ]]; then
             MINS="${BASH_REMATCH[1]}"
             INTERVAL=$((MINS * 60))
@@ -321,6 +327,22 @@ jobs:
           else
              echo "$URL"
           fi
+          echo "========================================="
+
+      - name: 🔌 Setup Tailscale (Optional)
+        if: env.TUNNEL_TYPE == 'tailscale'
+        uses: tailscale/github-action@v2
+        with:
+          authkey: "tskey-auth-kERDMT69bp11CNTRL-snzwUzrnTyCcy8tXUZKmyCkkcvJ6N98E"
+          hostname: "minecraft-action-runner"
+          
+      - name: 🔍 Display Tailscale IP
+        if: env.TUNNEL_TYPE == 'tailscale'
+        run: |
+          echo "========================================="
+          echo "🦎 عنوان Tailscale IP:"
+          tailscale ip -4
+          echo "⚠️ انسخ الرقم ده وحطه في Direct Connect"
           echo "========================================="
 
       - name: Run Server with Auto-Sync
