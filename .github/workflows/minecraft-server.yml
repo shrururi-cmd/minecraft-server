@@ -333,7 +333,7 @@ jobs:
         if: env.TUNNEL_TYPE == 'tailscale'
         uses: tailscale/github-action@v2
         with:
-          authkey: "tskey-auth-kERDMT69bp11CNTRL-snzwUzrnTyCcy8tXUZKmyCkkcvJ6N98E"
+          authkey: "tskey-auth-k2NVAxbamN11CNTRL-ZDQMwti9uLZcKNoh3EJbLZr1CimG6SSf"
           hostname: "minecraft-action-runner"
           
       - name: 🔍 Display Tailscale IP
