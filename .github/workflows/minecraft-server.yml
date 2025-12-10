@@ -297,7 +297,9 @@ jobs:
           echo "🔗 رابط السيرفر (Cloudflare):"
           # Extract URL from log
           grep -o 'tcp://.*\.trycloudflare\.com' cloudflare.log | head -n 1
-          echo "========================================="    - name: Run Server with Auto-Sync
+          echo "========================================="
+
+      - name: Run Server with Auto-Sync
         run: |
           cd server
           
