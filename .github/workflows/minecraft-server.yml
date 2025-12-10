@@ -221,13 +221,16 @@ jobs:
              echo "-Xms12G" >> user_jvm_args.txt
           fi
           
-          # 🔄 تثبيت Forge + إصلاح Libraries (يعمل لو الملفات ناقصة)
-          # الشرط الجديد: لو ملف الـ args مش موجود، يبقى لازم نثبته
-          unix_args_path="libraries/net/minecraftforge/forge/1.20.1-47.3.0/unix_args.txt"
+          # 🔄 تثبيت Forge + إصلاح Libraries (ذكي)
+          # البحث عن أي نسخة Forge مثبتة مسبقاً بدلاً من البحث عن نسخة محددة
+          EXISTING_ARGS=$(find libraries/net/minecraftforge/forge -name "unix_args.txt" 2>/dev/null | head -n 1)
           
-          if [ ! -f "$unix_args_path" ]; then
-              echo "🔧 ملفات Forge ناقصة أو تالفة. جاري التثبيت والإصلاح..."
-              wget -q https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.3.0/forge-1.20.1-47.3.0-installer.jar -O forge-installer.jar
+          if [ -n "$EXISTING_ARGS" ]; then
+              echo "✅ تم العثور على ملفات Forge جاهزة من المودباك: $EXISTING_ARGS"
+              echo "لن يتم إجراء أي تغييرات لتجنب المشاكل."
+          else
+              echo "🔧 لم يتم العثور على Forge. جاري تثبيت إصدار 47.3.20..."
+              wget -q https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.3.20/forge-1.20.1-47.3.20-installer.jar -O forge-installer.jar
               java -jar forge-installer.jar --installServer
               
               # تصحيح ملف التشغيل (لأن التثبيت ممكن يغيره)
