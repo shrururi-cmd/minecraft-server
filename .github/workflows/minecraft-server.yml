@@ -221,9 +221,12 @@ jobs:
              echo "-Xms12G" >> user_jvm_args.txt
           fi
           
-          # 🔄 تثبيت Forge + إصلاح Libraries (يعمل دائماً)
-          if [[ "$SERVER_NAME" == forge-* ]]; then
-              echo "🔧 التحقق من Forge والمكتبات..."
+          # 🔄 تثبيت Forge + إصلاح Libraries (يعمل لو الملفات ناقصة)
+          # الشرط الجديد: لو ملف الـ args مش موجود، يبقى لازم نثبته
+          unix_args_path="libraries/net/minecraftforge/forge/1.20.1-47.3.0/unix_args.txt"
+          
+          if [ ! -f "$unix_args_path" ]; then
+              echo "🔧 ملفات Forge ناقصة أو تالفة. جاري التثبيت والإصلاح..."
               wget -q https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.3.0/forge-1.20.1-47.3.0-installer.jar -O forge-installer.jar
               java -jar forge-installer.jar --installServer
               
@@ -292,11 +295,21 @@ jobs:
           # Start Quick Tunnel
           nohup ./cloudflared tunnel --url tcp://localhost:25565 --logfile cloudflare.log > /dev/null 2>&1 &
           
-          sleep 10
+          echo "⏳ انتظار رابط Cloudflare (20 ثانية)..."
+          sleep 20
+          
           echo "========================================="
           echo "🔗 رابط السيرفر (Cloudflare):"
-          # Extract URL from log
-          grep -o 'tcp://.*\.trycloudflare\.com' cloudflare.log | head -n 1
+          
+          # محاولة استخراج الرابط
+          URL=$(grep -o 'tcp://.*\.trycloudflare\.com' cloudflare.log | head -n 1)
+          
+          if [ -z "$URL" ]; then
+             echo "⚠️ لم يتم العثور على الرابط تلقائياً. عرض السجل كامل:"
+             cat cloudflare.log
+          else
+             echo "$URL"
+          fi
           echo "========================================="
 
       - name: Run Server with Auto-Sync
