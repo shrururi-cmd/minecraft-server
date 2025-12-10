@@ -111,8 +111,14 @@ jobs:
             echo "🚀 تم اكتشاف طلب ngrok"
             TUNNEL="ngrok"
           fi
+
+          # 3. Check for Cloudflare (_cf)
+          if [[ "$SERVER_NAME" == *"_cf"* ]]; then
+            echo "☁️ تم اكتشاف طلب Cloudflare Tunnel"
+            TUNNEL="cloudflare"
+          fi
           
-          # 3. Check for Custom Interval (_mXX)
+          # 4. Check for Custom Interval (_mXX)
           if [[ "$SERVER_NAME" =~ _m([0-9]+) ]]; then
             MINS="${BASH_REMATCH[1]}"
             INTERVAL=$((MINS * 60))
@@ -274,7 +280,24 @@ jobs:
           curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url' || echo "Error getting url"
           echo "========================================="
       
-      - name: Run Server with Auto-Sync
+      - name: ☁️ Setup Cloudflare Tunnel (Optional)
+        if: env.TUNNEL_TYPE == 'cloudflare'
+        run: |
+          cd server
+          echo "📥 تنزيل Cloudflare Tunnel..."
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared
+          chmod +x cloudflared
+          
+          echo "🌐 تشغيل التانل..."
+          # Start Quick Tunnel
+          nohup ./cloudflared tunnel --url tcp://localhost:25565 --logfile cloudflare.log > /dev/null 2>&1 &
+          
+          sleep 10
+          echo "========================================="
+          echo "🔗 رابط السيرفر (Cloudflare):"
+          # Extract URL from log
+          grep -o 'tcp://.*\.trycloudflare\.com' cloudflare.log | head -n 1
+          echo "========================================="    - name: Run Server with Auto-Sync
         run: |
           cd server
           
