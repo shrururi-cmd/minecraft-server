@@ -9,3 +9,6 @@ user_jvm_args.txt
 ngrok
 playit.log
 cloudflare.log
+*.zip
+*.rar
+*.7z
