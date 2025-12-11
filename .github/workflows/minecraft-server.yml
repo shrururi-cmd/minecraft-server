@@ -100,25 +100,41 @@ jobs:
       - name: ⚙️ Parse Configuration (Magic Names)
         id: parse_config
         run: |
-          # 1. Default Defaults
-          TUNNEL="playit"
+          # 1. Initialize Options (Defaults)
+          USE_NGROK="false"
+          USE_CLOUDFLARE="false"
+          USE_PLAYIT="false"
           INTERVAL=900
           
           echo "🔍 تحليل اسم السيرفر: $SERVER_NAME"
           
-          # 2. Check for ngrok (_ng)
+          # 2. Check flags
+          
+          # Ngrok (_ng)
           if [[ "$SERVER_NAME" == *"_ng"* ]]; then
-            echo "🚀 تم اكتشاف طلب ngrok"
-            TUNNEL="ngrok"
+            echo "🚀 تم تفعيل Ngrok"
+            USE_NGROK="true"
           fi
 
-          # 3. Check for Cloudflare (_cf)
+          # Cloudflare (_cf)
           if [[ "$SERVER_NAME" == *"_cf"* ]]; then
-            echo "☁️ تم اكتشاف طلب Cloudflare Tunnel"
-            TUNNEL="cloudflare"
+            echo "☁️ تم تفعيل Cloudflare Tunnel"
+            USE_CLOUDFLARE="true"
           fi
           
-          # 4. Check for Custom Interval (_mXX)
+          # Playit (_pg)
+          if [[ "$SERVER_NAME" == *"_pg"* ]]; then
+            echo "🌐 تم تفعيل Playit.gg"
+            USE_PLAYIT="true"
+          fi
+          
+          # Default fallback: If no network selected, use Playit
+          if [[ "$USE_NGROK" == "false" && "$USE_CLOUDFLARE" == "false" && "$USE_PLAYIT" == "false" ]]; then
+             echo "⚠️ لم يتم تحديد شبكة، سيتم تفعيل Playit افتراضياً."
+             USE_PLAYIT="true"
+          fi
+          
+          # 3. Check for Custom Interval (_mXX)
           if [[ "$SERVER_NAME" =~ _m([0-9]+) ]]; then
             MINS="${BASH_REMATCH[1]}"
             INTERVAL=$((MINS * 60))
@@ -126,7 +142,9 @@ jobs:
           fi
           
           # Export to Env
-          echo "TUNNEL_TYPE=$TUNNEL" >> $GITHUB_ENV
+          echo "USE_NGROK=$USE_NGROK" >> $GITHUB_ENV
+          echo "USE_CLOUDFLARE=$USE_CLOUDFLARE" >> $GITHUB_ENV
+          echo "USE_PLAYIT=$USE_PLAYIT" >> $GITHUB_ENV
           echo "SYNC_INTERVAL=$INTERVAL" >> $GITHUB_ENV
 
       - name: Setup Server (if needed)
@@ -258,8 +276,8 @@ jobs:
           # تأكيد قبول EULA
           echo "eula=true" > eula.txt
       
-      - name: 🌐 Setup playit.gg (Default)
-        if: env.TUNNEL_TYPE == 'playit'
+      - name: 🌐 Setup playit.gg (Optional)
+        if: env.USE_PLAYIT == 'true'
         run: |
           echo "🌐 إعداد playit.gg..."
           curl -SsL https://playit-cloud.github.io/ppa/key.gpg | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/playit.gpg >/dev/null
@@ -282,7 +300,7 @@ jobs:
           echo "========================================="
 
       - name: 🚀 Setup ngrok (Optional)
-        if: env.TUNNEL_TYPE == 'ngrok'
+        if: env.USE_NGROK == 'true'
         run: |
           cd server
           echo "📥 تنزيل ngrok..."
@@ -304,7 +322,7 @@ jobs:
           echo "========================================="
       
       - name: ☁️ Setup Cloudflare Tunnel (Optional)
-        if: env.TUNNEL_TYPE == 'cloudflare'
+        if: env.USE_CLOUDFLARE == 'true'
         run: |
           cd server
           echo "📥 تنزيل Cloudflare Tunnel..."
