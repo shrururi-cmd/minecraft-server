@@ -1,14 +1,14 @@
-
-# Valid gitignore
-.DS_Store
 *.log
 *.exe
+*.jar
 server/
-eula.txt
-user_jvm_args.txt
-ngrok
-playit.log
-cloudflare.log
-*.zip
+world/
+logs/
+crash-reports/
 *.rar
+*.zip
 *.7z
+.DS_Store
+ngrok
+cloudflared
+playit
